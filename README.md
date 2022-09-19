@@ -84,6 +84,12 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/t
 [12:54 PM, 4/28/2022] Raj Unical: almost all cases completed.
 [12:54 PM, 4/28/2022] Raj Unical: we need to test few more cases.
 [12:54 PM, 4/28/2022] Raj Unical: Rajkumar, inform rajesh sir that we should select shift wise only....
-
+<ReactHTMLTableToExcel
+                    id="test-table-xls-button"
+                    className="download-table-xls-button"
+                    table="table-to-xls"
+                    filename="tablexls"
+                    sheet="tablexls"
+                    buttonText="Download as XLS"/>
 
 
