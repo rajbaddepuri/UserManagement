@@ -1,0 +1,507 @@
+
+import express from 'express';
+import cron from 'node-cron'
+import bodyParser from 'body-parser'
+import cors from 'cors'
+import sql from 'mssql'
+import * as fs from 'fs';
+import moment from 'moment';
+import mexp from 'math-expression-evaluator';
+import { error } from 'console';
+import { } from 'dotenv/config'
+
+var app = express();
+var router = express.Router();
+
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+app.use(cors());
+app.use('/api', router);
+
+router.use((request, response, next) => {
+  //console.log('middleware');
+  next();
+})
+
+app.get("/", (req, res) => {
+  res.json({ message: "Welcome to ECSCADA application." });
+});
+
+const config = {
+  user: 'sa',
+  password: 'root',
+  server: 'localhost',
+  database: 'ECDBAZE',
+  options: {
+    //         trustedconnection: true,
+    enableArithAbort: false,
+    //         instancename :'SQLEXPRESS'
+  },
+  port: 1433
+
+  //  user: 'sa',
+  //  password: 'root',
+  //  server: 'localhost', 
+  //  database: 'ECDBAZE',
+  //  synchronize: true,
+  //  trustServerCertificate: true,
+}
+
+app.post("/Expeval", (req, res) => {
+
+  //console.log("rajkumar entered")
+  let order = { ...req.body }
+  //console.log(order["InputScript"])
+  sql.connect(config, function (err) {
+
+    // create Request object
+    var request = new sql.Request();
+
+    ////console.log("entered into sql")
+
+    let quer2 = `select '_'+pointname as pointname,fvalue from WEBDATA;`
+    request.query(quer2, function (err, recordset) {
+
+      if (recordset != undefined) {
+        let dt = recordset.recordset
+        console.log(dt)
+
+        ////console.log(dt)
+
+        //var temp = (handshakeData._query['foo'])
+        var temp = order["InputScript"]
+        temp = temp.replace("$;", "")
+        //_DTms_0003+2+_DTms_0004/_DTms_0005
+        //console.log(temp)
+        ////console.log("dgshfh",dt.length)
+
+        var b = temp.toString();
+        for (let i = 0; i < dt.length; i++) {
+          var TagName = dt[i]["pointname"].toString();
+          var pttype = dt[i]["pttype"].toString();
+          if (pttype == 1) {   //analog
+            var fvalue = dt[i]["fvalue"].toString();
+          }
+
+          else if (pttype == 2) {
+            var fvalue = dt[i]["state"].toString();
+          }
+          if (temp.toString().includes(TagName)) {
+            b = b.replace(TagName, fvalue);
+            temp = b.toString();
+          }
+        }
+
+        try {
+          //console.log("raj",temp)
+          var result = eval(temp)
+          if (result != undefined) {
+
+            const response = {
+              "data": result.toString(),
+              "error": "false"
+            };
+            //console.log(response)
+            res.json(response);
+          }
+        }
+        catch {
+          //console.log("entere into catch")
+          const response = {
+            "data": null,
+            "error": "true"
+          };
+          //console.log(response)
+          res.json(response);
+
+        }
+
+      }
+    })
+
+
+  })
+
+
+
+})
+
+/// ...............Web REports For Mobile..............///
+app.post("/WebReports", (req, res) => {
+  let response = req.body
+
+  let path = "C:" + "/" + "ECWEBSERVER" + "/" + "webreports"
+
+  console.log(path)
+  if (response["path"] == "daily") {
+
+    const directoryPath = path + "/" + response["path"];
+    const baseUrl = "C:/ECWEBSERVER/webreports/daily/"
+    fs.readdir(directoryPath, function (err, files) {
+      if (err) {
+        res.status(500).send({
+          message: "Unable to scan files!",
+        });
+      }
+      console.log(files)
+      let fileInfos = [];
+      for (let i = 0; i < files.length; i++) {
+
+        if ((files[i].toString()).includes(response["date"])) {
+
+          fileInfos.push({
+            name: files[i],
+            url: baseUrl + files[i],
+          });
+        }
+      }
+      console.log(fileInfos)
+      res.status(200).send(fileInfos);
+
+    });
+
+
+  }
+  if (response["path"] == "shift") {
+
+    const directoryPath = path + "/" + response["path"];
+    const baseUrl = "file://desktop-ktfhdn4/webreports/shift/"
+    fs.readdir(directoryPath, function (err, files) {
+      if (err) {
+        res.status(500).send({
+          message: "Unable to scan files!",
+        });
+      }
+      let fileInfos = [];
+      for (let i = 0; i < files.length; i++) {
+
+        if ((files[i].toString()).includes(response["date"])) {
+
+          fileInfos.push({
+            name: files[i],
+            url: baseUrl + files[i],
+          });
+        }
+      }
+      console.log(fileInfos)
+      res.status(200).send(fileInfos);
+
+    });
+
+
+  }
+
+
+})
+//.............. for creating folader inside the project..........///
+
+app.post('/ProjectFolader', function (req, res) {
+  //console.log("Project folader name called")
+  var pathname = 'E:/WebServer_DevelopementStation/ECIL/ECSCADA_WEBSERVER/ECSCADA Web Server/src/Pages/Project/' + req.body.file;
+
+  //console.log(pathname)
+  try {
+    fs.mkdir(pathname, function (err) {
+      if (err) {
+        //console.log(err)
+      }
+      else {
+        //console.log("Project folader created succesfully")
+      }
+    })
+  }
+  catch {
+    //console.log("handled")
+  }
+
+
+
+
+});
+
+cron.schedule("*/10 * * * * *", function () {  ////corn schedule is fix the time the mentioned 10 sec
+
+ // console.log("rajkumar..enterd");
+
+  async function getOrders() {
+
+    // var fs = require("fs")
+
+    let pool = await sql.connect(config);
+    //console.log(pool)
+
+    let Tagname1 = await pool.request().query("SELECT distinct pointname from currentgroup")
+    console.log(Tagname1.recordsets);
+
+    const Tagname = []
+    Tagname1.recordsets.map((a => {
+      Tagname.push(a);
+    }))
+    ////console.log(Tagname[0])
+    // //console.log(Tagname[0])
+
+
+    var filePath = process.env.File_Path;
+    console.log("raj", filePath);
+
+    // fs.writeFile('data.text', JSON.stringify(fileData), (err) => {
+
+    //     // In case of a error throw err.
+    //     if (err) throw err;
+    // })
+
+    //var fs = require('fs');
+    // const moment = require('moment');
+    var time = moment(new Date()).format("YYYY-MM-DD HHmmss").toString();
+    //moment(s.DateofJoining).format('MM/DD/YYYY');
+    " DTms_0010$2022-01-07 154105.108000000"
+
+    // //console.log("2022-01-07 154105")
+    // //console.log(time)
+
+    try {
+      for (let i = 0; i < Tagname[0].length; i++) {
+
+        //let products = await pool.request().query(`select slno,plntloc,pointname,fvalue,timestamp,Quality from webdata_log where pointname ='${Tagname[0][i].pointname}'`);
+        let products = await pool.request().query(`select fvalue,timestamp from webdata_log where pointname ='${Tagname[0][i].pointname}'`);
+
+        // //console.log("finding the length of the ")
+
+        var temp = products.recordsets;
+        // //console.log(temp)
+
+        let fileData = []
+        temp.map((a) => {
+          fileData.push(a);
+        });
+        //console.log(fileData[0].length)
+        var mydata = [];
+
+        fileData[0].map((a) => {
+          ////console.log( moment (new Date ("2022-02-09 14:50:47")).format("YYYY-MM-DD HH:MM:SS"));
+          let s = a.timestamp;
+          let d = new Date(Date.parse(s));
+          //  //console.log(d.toString());
+          var date = new Date(a.timestamp);
+          var seconds = date.getTime() / 1000; //1440516958
+
+          //console.log(seconds)
+
+          var secto = 19800;
+          var time = (new Date((seconds - secto) * 1000)).toString();
+          // mydata.push(a.slno,a.plntloc,a.pointname,a.fvalue,moment (a.timestamp).format("YYYY-MM-DD HH:mm:ss"),a.Quality,"}","\n");
+          mydata.push(a.fvalue, moment(time).format("YYYY-MM-DD HH:mm:ss"), a.Quality, "}", "\n");
+        })
+        // //console.log(mydata)
+        var mydata1 = mydata.toString();
+        //   //console.log("2nd con",mydata1)
+        var mydata2 = mydata1.split("},");
+
+        var mydata3 = mydata2.toString();
+        var mydata4 = mydata3.replace(",}", " ");
+
+        if (fileData.length > 0) {
+          //fs.open(filePath + Tagname[0][i].pointname + '$' + time + '.txt', 'w', function (err, file) {
+           //if (err) throw err;
+            //         fs.writeFile(filePath+Tagname[0][i].pointname+'$'+time+'.txt',JSON.stringify(mydata) + '\n' , (err) => {
+
+            //     // In case of a error throw err.
+            //     if (err) throw err;
+            // })
+            var createStream = fs.createWriteStream(filePath + Tagname[0][i].pointname + '$' + time + '.txt', {
+              flags: 'a' // 'a' means appending (old data will be preserved)
+            });
+            var writeLine = (line) => createStream.write(`\n${line}`);
+            //console.log('Saved!');
+            //console.log(mydata4);
+            writeLine(mydata4);
+            createStream.end();
+
+            // // Get the file descriptor of the given path
+            // var file_descriptor = fs.openSync(filePath + Tagname[0][i].pointname + '$' + time + '.txt');
+            // console.log("The file descriptor is:", file_descriptor);
+
+            // Close the file descriptor
+            // fs.closeSync(file_descriptor, (err) => {
+            //   if (err)
+            //     console.error('Failed to close file', err);
+            //   else {
+            //     console.log("\n> File Closed successfully");
+            //   }
+            // });
+
+          //});//end for fs.open
+          
+          //
+          // fs.close(filePath + Tagname[0][i].pointname + '$' + time + '.txt', (err) => {
+          //   if (err)
+          //     console.error('Failed to close file', err);
+          //   else {
+          //     console.log("\n> File Closed successfully");
+          //   }
+          // });
+        }
+
+
+      }
+    }
+    catch {
+      console.log("Rajkumar", err);
+    }
+    finally{
+
+    }
+    // let Delete = await pool.request().query("Delete from webdata_log");
+
+    ////console.log(Delete)
+
+    return Tagname1.recordsets;
+
+
+  }
+
+  getOrders();
+});
+
+//////////.........to get the historic trend data ............///
+app.post('/historicdata', function (req, res) {
+
+  // console.log("rajkumar")
+  let response = req.body
+
+  var fromDate = response['fromDate'];
+  var toDate = response['toDate'];
+  var selctedGroup = response['selctedGroup'];
+  // var fromDate = "2022-04-29T10:21:24";
+  // var toDate = "2022-04-29T13:21:24";
+  //var selctedGroup = "DAS_GRP2";
+  var selctedGroupTags = [];
+
+  //Betwean Dates of From Date and To Date---
+  function getDates(startDate, endDate) {
+    const dates = []
+    let currentDate = startDate
+    const addDays = function (days) {
+      const date = new Date(this.valueOf())
+      date.setDate(date.getDate() + days)
+      return date
+    }
+    while (currentDate <= endDate) {
+      dates.push(currentDate)
+      currentDate = addDays.call(currentDate, 1)
+    }
+    return dates
+  }
+  //Calling betwean Dates Function----
+  const dates = getDates(new Date(fromDate), new Date(toDate))
+  //Directory Files Path----
+  const directoryPath = "D:/unical/DynamicFlatFiles/OutputFolder/";
+  //Reading Directory Files
+  fs.readdir(directoryPath, function (err, files) {
+    if (err) {
+      res.status(500).send({
+        message: "Unable to scan files!",
+      });
+    }
+
+    //1-- get all tags in that group
+    //Call Api or connect to Db
+    //console.log(order["InputScript"])
+    sql.connect(config, function (err) {
+      // create Request object
+      var request = new sql.Request();
+      //let quer2 = "SELECT POINTNAME FROM currentgroup WHERE CURTRENDTITLE='DAS_GRP2'";
+      let quer2 = `SELECT POINTNAME FROM currentgroup WHERE CURTRENDTITLE ='${selctedGroup}'`;
+      request.query(quer2, function (err, recordset) {
+        selctedGroupTags = recordset.recordset;
+        //console.log("raj1",selctedGroupTags)
+        var Filename = {}
+        //TAGS LOOP
+        var tagwisedata = [];
+        for (var i = 0; i < selctedGroupTags.length; i++) {
+          for (var j = 0; j < dates.length; j++) {
+            //console.log(selctedGroupTags[i]['POINTNAME']+"$"+moment(dates[j]).format('YYYY-MM-DD'))
+            files.findIndex(checkfilename);
+            function checkfilename(file) {
+              if (file.includes(selctedGroupTags[i]['POINTNAME'] + "$" + moment(dates[j]).format('YYYY-MM-DD'))) {
+                //  console.log("result",file)
+                ///---read file ----//
+                ///---push to tagwaise data  at index--------//
+                //  console.log("path",directoryPath+file)
+                try {
+                  var data = fs.readFileSync(directoryPath + file, 'utf8');
+                  // console.log(data.length);  
+                  // console.log("rajkumar123",data.length) 
+                  data = "," + data;
+                  var tagData = data.toString().split(",,");
+                  // console.log("Length of tags"+tagData.length)
+                  //console.log(tagData);
+
+                  for (let k = 0; k < tagData.length - 1; k++) {
+                    var tagSplit = tagData[k].split(",");
+                    // console.log("Splitbycama"+tagSplit.toString())
+                    // console.log(tagSplit)
+                    //Filtering based on DateTime ----
+                    if (moment(tagSplit[2]).isAfter(moment(fromDate)) && moment(tagSplit[2]).isBefore(moment(toDate))) {
+                      tagwisedata.push({
+                        "groupName": selctedGroup,
+                        "pointName": selctedGroupTags[i]['POINTNAME'],
+                        "fvalue": tagSplit[1] ?? "",
+                        "timeStamp": tagSplit[2] ?? ""
+                      })
+
+                    }
+
+                  }
+                } catch (e) {
+                  console.log('Error:', e.stack);
+                }
+              }
+            }
+          }
+        }
+        //Send Respone -- to user 
+        res.send(JSON.stringify(tagwisedata))
+      })
+    })
+  });
+
+});
+
+//app.post("/XMLFiles", (req, res) => {
+
+app.get("/XMLFiles", (req, res) => {
+
+
+  let path = "C:" + "/" + "ECWEBSERVER" + "/" + "Xml"
+
+  console.log(path)
+
+
+  const directoryPath = path;
+  const baseUrl = "file://desktop-ktfhdn4/webreports/daily/"
+  fs.readdir(directoryPath, function (err, files) {
+    //handling error
+    if (err) {
+      return console.log('Unable to scan directory: ' + err);
+    }
+    //listing all files using forEach
+    let fileInfos = [];
+    files.forEach(function (file) {
+      // Do whatever you want to do with the file
+      fileInfos.push({
+        file
+      });
+    });
+    res.status(200).send(fileInfos);
+  });
+})
+
+
+
+var port = process.env.PORT || 9090;
+app.listen(port);
+console.log('Ecscada API is runnning at ' + port);
+
+
+
