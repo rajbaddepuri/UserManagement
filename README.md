@@ -1,3 +1,5 @@
+#SET @SQL = 'SELECT ProductID,Name,ProductNumber FROM SalesLT.Product where ProductID = '+ @Pid
+
 # Getting Started with Create React App
 
 https://hscapi2.hotshotsconnections.us/api/favourite
