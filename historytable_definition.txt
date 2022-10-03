@@ -1,0 +1,26 @@
+USE [ECDBAZE]
+GO
+
+/****** Object:  Table [dbo].[webdata_log]    Script Date: 03-10-2022 16:10:52 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[webdata_log](
+	[slno] [int] NULL,
+	[plntloc] [varchar](16) NULL,
+	[pointname] [varchar](15) NULL,
+	[pttype] [int] NULL,
+	[fvalue] [float] NULL,
+	[state] [int] NULL,
+	[COMMENT] [varchar](50) NULL,
+	[isVertical] [bit] NULL,
+	[timestamp] [datetime] NULL,
+	[dateval] [datetime] NULL,
+	[Quality] [int] NULL
+) ON [PRIMARY]
+GO
+
+
