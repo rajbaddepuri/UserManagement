@@ -1,3 +1,27 @@
+useEffect(() => {
+
+    dynamciAssociationSetinterval();
+    
+  }, []);
+
+  let flag = true;
+  function dynamciAssociationSetinterval () {
+    if (flag == true) {
+      dynamciAssociation();
+      flag = false;
+    }
+    else {
+      const interval = setInterval(() => {
+        dynamciAssociation();
+      }, process.env.REACT_APP_SIMULATION_TIME);
+      return () => {
+        window.clearInterval(interval)
+      }
+    }
+    
+  }
+
+
 #SET @SQL = 'SELECT ProductID,Name,ProductNumber FROM SalesLT.Product where ProductID = '+ @Pid
 
 # Getting Started with Create React App
